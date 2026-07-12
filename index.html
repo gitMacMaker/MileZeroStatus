@@ -120,6 +120,7 @@ h1.headline em { font-style: italic; color: var(--accent); }
 .subscribe__on b { color: var(--text); }
 .subscribe__on a { color: var(--accent); font-weight: 600; text-decoration: none; border-bottom: 1px solid transparent; }
 .subscribe__on a:hover { border-color: var(--accent); }
+.subscribe__hint { margin-top: 8px; font-size: 12.5px; color: var(--dim); opacity: 0.8; }
 
 @media (max-width: 520px) {
   .subform__row .btn { flex: 1; justify-content: center; }
@@ -312,7 +313,8 @@ h1.headline em { font-style: italic; color: var(--accent); }
 
   function subscribeHTML(email) {
     if (email) {
-      return '<p class="subscribe__on">&#10003; Getting email updates at <b>' + email + '</b> · <a href="#" id="changeEmail">change</a></p>';
+      return '<p class="subscribe__on">&#10003; Getting email updates at <b>' + email + '</b> · <a href="#" id="changeEmail">change</a></p>' +
+        '<p class="subscribe__hint">Check your junk/spam folder if you don\'t see one — mark it "not spam" so future updates land in your inbox.</p>';
     }
     return (
       '<form class="subform" id="subForm">' +
@@ -321,6 +323,7 @@ h1.headline em { font-style: italic; color: var(--accent); }
           '<input id="subEmail" type="email" placeholder="you@email.com" autocomplete="email" required>' +
           '<button type="submit" class="btn" id="subBtn">Email me updates</button>' +
         '</div>' +
+        '<p class="subscribe__hint">Heads up — these can sometimes land in junk/spam, especially the first one.</p>' +
         '<p class="subscribe__err" id="subErr"></p>' +
       '</form>'
     );
