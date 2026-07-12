@@ -109,6 +109,22 @@ h1.headline em { font-style: italic; color: var(--accent); }
 .meta { margin-top: 30px; display: flex; justify-content: space-between; flex-wrap: wrap; gap: 10px; font-size: 13.5px; color: var(--dim); }
 .meta b { color: var(--text); font-weight: 600; }
 
+.subscribe { margin-top: 24px; padding: 18px 20px; border-radius: 14px; background: var(--panel, rgba(255,255,255,0.03)); border: 1px solid var(--line-soft); }
+.subscribe__label { display: block; font-size: 13.5px; color: var(--dim); margin-bottom: 10px; }
+.subform__row { display: flex; gap: 10px; flex-wrap: wrap; }
+.subform__row input { flex: 1; min-width: 180px; background: transparent; border: 1.5px solid var(--line); border-radius: 999px; padding: 11px 18px; font: inherit; font-size: 14.5px; color: var(--text); outline: none; }
+.subform__row input:focus { border-color: var(--accent); }
+.subform__row .btn { padding: 11px 20px; font-size: 14px; }
+.subscribe__err { margin-top: 8px; font-size: 13px; color: #e08a6b; min-height: 0; }
+.subscribe__on { font-size: 14px; color: var(--dim); }
+.subscribe__on b { color: var(--text); }
+.subscribe__on a { color: var(--accent); font-weight: 600; text-decoration: none; border-bottom: 1px solid transparent; }
+.subscribe__on a:hover { border-color: var(--accent); }
+
+@media (max-width: 520px) {
+  .subform__row .btn { flex: 1; justify-content: center; }
+}
+
 .foot { margin-top: 34px; padding-top: 24px; border-top: 1px solid var(--line-soft); text-align: center; }
 .foot p { color: var(--dim); font-size: 14px; }
 .foot a { color: var(--accent); font-weight: 600; text-decoration: none; border-bottom: 1px solid transparent; }
@@ -155,6 +171,7 @@ h1.headline em { font-style: italic; color: var(--accent); }
 <script>
 (function () {
   var SHEET = '1HOGSYzG-g9uzVWH68amEBo_dZWtjzJRzxbkBmfzumtA';
+  var SHEET_HOOK = 'https://script.google.com/macros/s/AKfycbzY3Fx214gDx6BHPPwOW9J8YkS7r2VlSwiGw-N_BLk0mW2KzK3iyn4eCYpV-nWDpN5t/exec';
   var card = document.getElementById('card');
   var params = new URLSearchParams(window.location.search);
   var initialCode = (params.get('p') || '').trim();
@@ -257,6 +274,7 @@ h1.headline em { font-style: italic; color: var(--accent); }
     var current = esc(row[4]);
     var updated = esc(row[5]);
     var next = row[6] ? esc(row[6]) : '';
+    var email = row[7] ? esc(row[7].trim()) : '';
 
     var track = '<div class="track__row">';
     for (var i = 1; i <= 3; i++) {
@@ -279,6 +297,7 @@ h1.headline em { font-style: italic; color: var(--accent); }
       '<div class="track">' + track + '</div>' +
       '<div class="meta"><span>Last updated: <b>' + updated + '</b></span>' +
       (next ? '<span>Next: <b>' + next + '</b></span>' : '') + '</div>' +
+      '<div class="subscribe" id="subscribe">' + subscribeHTML(email) + '</div>' +
       '<div class="foot"><p>Questions along the way? <a href="mailto:milezerostudio@gmail.com">Just email me</a> — no need to wait for an update.</p></div>';
 
     document.getElementById('backLink').addEventListener('click', function (e) {
@@ -286,6 +305,68 @@ h1.headline em { font-style: italic; color: var(--accent); }
       stopPolling();
       history.replaceState(null, '', window.location.pathname);
       renderEntry();
+    });
+
+    wireSubscribe(row[0].trim());
+  }
+
+  function subscribeHTML(email) {
+    if (email) {
+      return '<p class="subscribe__on">&#10003; Getting email updates at <b>' + email + '</b> · <a href="#" id="changeEmail">change</a></p>';
+    }
+    return (
+      '<form class="subform" id="subForm">' +
+        '<label class="subscribe__label">Want an email whenever this updates?</label>' +
+        '<div class="subform__row">' +
+          '<input id="subEmail" type="email" placeholder="you@email.com" autocomplete="email" required>' +
+          '<button type="submit" class="btn" id="subBtn">Email me updates</button>' +
+        '</div>' +
+        '<p class="subscribe__err" id="subErr"></p>' +
+      '</form>'
+    );
+  }
+
+  function wireSubscribe(code) {
+    var changeLink = document.getElementById('changeEmail');
+    if (changeLink) {
+      changeLink.addEventListener('click', function (e) {
+        e.preventDefault();
+        document.getElementById('subscribe').innerHTML = subscribeHTML('');
+        wireSubscribe(code);
+      });
+      return;
+    }
+    var form = document.getElementById('subForm');
+    if (!form) return;
+    form.addEventListener('submit', function (e) {
+      e.preventDefault();
+      var email = document.getElementById('subEmail').value.trim();
+      var btn = document.getElementById('subBtn');
+      var err = document.getElementById('subErr');
+      btn.disabled = true;
+      btn.textContent = 'Saving…';
+      err.textContent = '';
+      fetch(SHEET_HOOK, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({ action: 'setEmail', code: code, email: email })
+      })
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+          if (data && data.ok) {
+            document.getElementById('subscribe').innerHTML = subscribeHTML(email);
+            wireSubscribe(code);
+          } else {
+            btn.disabled = false;
+            btn.textContent = 'Email me updates';
+            err.textContent = 'Something went wrong — try again in a moment.';
+          }
+        })
+        .catch(function () {
+          btn.disabled = false;
+          btn.textContent = 'Email me updates';
+          err.textContent = 'Something went wrong — try again in a moment.';
+        });
     });
   }
 
