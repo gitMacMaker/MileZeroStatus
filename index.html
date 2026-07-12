@@ -121,6 +121,15 @@ h1.headline em { font-style: italic; color: var(--accent); }
 .subscribe__on a { color: var(--accent); font-weight: 600; text-decoration: none; border-bottom: 1px solid transparent; }
 .subscribe__on a:hover { border-color: var(--accent); }
 .subscribe__hint { margin-top: 8px; font-size: 12.5px; color: var(--dim); opacity: 0.8; }
+.scope-toggle { display: flex; gap: 8px; flex-wrap: wrap; margin: 12px 0 16px; }
+.scope-opt {
+  display: flex; align-items: center; gap: 0; position: relative; cursor: pointer;
+  padding: 10px 18px; border-radius: 999px; border: 1.5px solid var(--line);
+  font-size: 14px; font-weight: 600; color: var(--dim); transition: all 160ms ease;
+}
+.scope-opt input { position: absolute; opacity: 0; width: 0; height: 0; }
+.scope-opt:has(input:checked) { background: var(--accent); border-color: var(--accent); color: #101014; }
+.scope-opt:hover { border-color: var(--accent); }
 
 @media (max-width: 520px) {
   .subform__row .btn { flex: 1; justify-content: center; }
@@ -276,6 +285,7 @@ h1.headline em { font-style: italic; color: var(--accent); }
     var updated = esc(row[5]);
     var next = row[6] ? esc(row[6]) : '';
     var email = row[7] ? esc(row[7].trim()) : '';
+    var scope = (row[9] && row[9].trim().toLowerCase() === 'all') ? 'all' : 'milestones';
 
     var track = '<div class="track__row">';
     for (var i = 1; i <= 3; i++) {
@@ -298,7 +308,7 @@ h1.headline em { font-style: italic; color: var(--accent); }
       '<div class="track">' + track + '</div>' +
       '<div class="meta"><span>Last updated: <b>' + updated + '</b></span>' +
       (next ? '<span>Next: <b>' + next + '</b></span>' : '') + '</div>' +
-      '<div class="subscribe" id="subscribe">' + subscribeHTML(email) + '</div>' +
+      '<div class="subscribe" id="subscribe">' + subscribeHTML(email, scope) + '</div>' +
       '<div class="foot"><p>Questions along the way? <a href="mailto:milezerostudio@gmail.com">Just email me</a> — no need to wait for an update.</p></div>';
 
     document.getElementById('backLink').addEventListener('click', function (e) {
@@ -311,14 +321,20 @@ h1.headline em { font-style: italic; color: var(--accent); }
     wireSubscribe(row[0].trim());
   }
 
-  function subscribeHTML(email) {
+  function subscribeHTML(email, scope) {
+    scope = scope === 'all' ? 'all' : 'milestones';
     if (email) {
-      return '<p class="subscribe__on">&#10003; Getting email updates at <b>' + email + '</b> · <a href="#" id="changeEmail">change</a></p>' +
+      var scopeLabel = scope === 'milestones' ? 'major milestones only' : 'every update';
+      return '<p class="subscribe__on">&#10003; Getting emails at <b>' + email + '</b> (' + scopeLabel + ') · <a href="#" id="changeEmail">change</a></p>' +
         '<p class="subscribe__hint">Check your junk/spam folder if you don\'t see one — mark it "not spam" so future updates land in your inbox.</p>';
     }
     return (
       '<form class="subform" id="subForm">' +
         '<label class="subscribe__label">Want an email whenever this updates?</label>' +
+        '<div class="scope-toggle">' +
+          '<label class="scope-opt"><input type="radio" name="subScope" value="milestones"' + (scope === 'milestones' ? ' checked' : '') + '>Major milestones only</label>' +
+          '<label class="scope-opt"><input type="radio" name="subScope" value="all"' + (scope === 'all' ? ' checked' : '') + '>Every update</label>' +
+        '</div>' +
         '<div class="subform__row">' +
           '<input id="subEmail" type="email" placeholder="you@email.com" autocomplete="email" required>' +
           '<button type="submit" class="btn" id="subBtn">Email me updates</button>' +
@@ -334,7 +350,7 @@ h1.headline em { font-style: italic; color: var(--accent); }
     if (changeLink) {
       changeLink.addEventListener('click', function (e) {
         e.preventDefault();
-        document.getElementById('subscribe').innerHTML = subscribeHTML('');
+        document.getElementById('subscribe').innerHTML = subscribeHTML('', '');
         wireSubscribe(code);
       });
       return;
@@ -344,6 +360,7 @@ h1.headline em { font-style: italic; color: var(--accent); }
     form.addEventListener('submit', function (e) {
       e.preventDefault();
       var email = document.getElementById('subEmail').value.trim();
+      var scope = form.querySelector('input[name="subScope"]:checked').value;
       var btn = document.getElementById('subBtn');
       var err = document.getElementById('subErr');
       btn.disabled = true;
@@ -352,12 +369,12 @@ h1.headline em { font-style: italic; color: var(--accent); }
       fetch(SHEET_HOOK, {
         method: 'POST',
         headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        body: JSON.stringify({ action: 'setEmail', code: code, email: email })
+        body: JSON.stringify({ action: 'setEmail', code: code, email: email, scope: scope })
       })
         .then(function (r) { return r.json(); })
         .then(function (data) {
           if (data && data.ok) {
-            document.getElementById('subscribe').innerHTML = subscribeHTML(email);
+            document.getElementById('subscribe').innerHTML = subscribeHTML(email, scope);
             wireSubscribe(code);
           } else {
             btn.disabled = false;
