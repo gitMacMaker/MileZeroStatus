@@ -40,12 +40,30 @@ main { flex: 1; display: flex; align-items: center; padding: 40px 0 80px; }
   box-shadow: 0 30px 70px -30px rgba(0,0,0,0.6);
 }
 
-/* ---- loading / not-found states ---- */
+/* ---- loading / entry / not-found states ---- */
 .msg { text-align: center; padding: 20px 0; }
 .msg .eyebrow { font-size: 12.5px; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; color: var(--dim); }
 .msg h1 { font-family: var(--font-display); font-weight: 600; font-size: 30px; margin-top: 14px; }
 .msg p { margin-top: 14px; color: var(--dim); }
 .msg .btn { margin-top: 26px; }
+
+.codeform { margin-top: 28px; display: flex; gap: 10px; }
+.codeform input {
+  flex: 1; min-width: 0; background: var(--bg); border: 1.5px solid var(--line); border-radius: 999px;
+  color: var(--text); font-family: var(--font-body); font-size: 16px; padding: 13px 20px;
+  text-align: center; letter-spacing: 0.02em;
+}
+.codeform input:focus { outline: none; border-color: var(--accent); }
+.codeform input::placeholder { color: var(--dim); }
+.codeform .btn { padding: 13px 24px; flex: none; }
+.entry__err { margin-top: 14px; color: #f2a6a6; font-size: 14px; min-height: 1.4em; }
+.back-link { display: inline-block; margin-bottom: 18px; color: var(--dim); font-size: 13.5px; text-decoration: none; border-bottom: 1px solid var(--line); }
+.back-link:hover { color: var(--text); }
+
+@media (max-width: 480px) {
+  .codeform { flex-direction: column; }
+  .codeform .btn { justify-content: center; }
+}
 
 /* ---- status card ---- */
 .eyebrow { font-size: 12.5px; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; color: var(--dim); }
@@ -137,7 +155,7 @@ h1.headline em { font-style: italic; color: var(--accent); }
   var SHEET = '1HOGSYzG-g9uzVWH68amEBo_dZWtjzJRzxbkBmfzumtA';
   var card = document.getElementById('card');
   var params = new URLSearchParams(window.location.search);
-  var slug = (params.get('p') || '').trim().toLowerCase();
+  var initialCode = (params.get('p') || '').trim();
 
   var STAGES = ['Tell me what you need', 'Design & build', 'Handoff'];
 
@@ -156,24 +174,51 @@ h1.headline em { font-style: italic; color: var(--accent); }
     return rows;
   }
 
-  function renderNotFound() {
+  var rowsPromise = fetch('https://docs.google.com/spreadsheets/d/' + SHEET + '/gviz/tq?tqx=out:csv')
+    .then(function (r) { if (!r.ok) throw new Error('sheet'); return r.text(); })
+    .then(parseCSV)
+    .catch(function () { return null; });
+
+  function renderEntry(prefill, error) {
     card.innerHTML =
       '<div class="msg">' +
         '<p class="eyebrow">Project status</p>' +
-        '<h1>Couldn\'t find that project.</h1>' +
-        '<p>Double-check the link, or reach out and I\'ll send you the right one.</p>' +
-        '<a class="btn" href="mailto:milezerostudio@gmail.com">Email me</a>' +
+        '<h1>Check your project.</h1>' +
+        '<p>Enter the code I gave you to see where things stand.</p>' +
+        '<form class="codeform" id="codeForm">' +
+          '<input id="codeInput" type="text" placeholder="Your project code" autocomplete="off" autocapitalize="off" spellcheck="false" value="' + esc(prefill || '') + '">' +
+          '<button type="submit" class="btn" id="codeBtn">View status</button>' +
+        '</form>' +
+        '<p class="entry__err">' + (error ? esc(error) : '') + '</p>' +
+        '<a class="btn" href="mailto:milezerostudio@gmail.com" style="margin-top:22px; background:transparent; box-shadow:inset 0 0 0 1.5px var(--line); color:var(--text);">Don\'t have a code? Email me</a>' +
       '</div>';
+
+    document.getElementById('codeForm').addEventListener('submit', function (e) {
+      e.preventDefault();
+      var code = document.getElementById('codeInput').value.trim();
+      if (!code) return;
+      lookup(code);
+    });
   }
 
-  function renderNoSlug() {
-    card.innerHTML =
-      '<div class="msg">' +
-        '<p class="eyebrow">Project status</p>' +
-        '<h1>Looking for your project?</h1>' +
-        '<p>Use the link I sent you — it has your project code at the end, like <code>?p=yourproject</code>.</p>' +
-        '<a class="btn" href="mailto:milezerostudio@gmail.com">Email me</a>' +
-      '</div>';
+  function lookup(code) {
+    var btn = document.getElementById('codeBtn');
+    if (btn) { btn.disabled = true; btn.textContent = 'Checking…'; }
+    rowsPromise.then(function (rows) {
+      var slug = code.toLowerCase();
+      var match = null;
+      if (rows) {
+        for (var i = 0; i < rows.length; i++) {
+          if (rows[i][0].trim().toLowerCase() === slug) { match = rows[i]; break; }
+        }
+      }
+      if (match) {
+        history.replaceState(null, '', '?p=' + encodeURIComponent(match[0].trim()));
+        renderStatus(match);
+      } else {
+        renderEntry(code, 'Couldn\'t find a project with that code — double-check it, or email me and I\'ll send you the right one.');
+      }
+    });
   }
 
   function renderStatus(row) {
@@ -198,6 +243,7 @@ h1.headline em { font-style: italic; color: var(--accent); }
     track += '</div>';
 
     card.innerHTML =
+      '<a class="back-link" href="#" id="backLink">&larr; Check a different project</a>' +
       '<p class="eyebrow"><b>' + name + '</b></p>' +
       '<h1 class="headline">' + headline + '</h1>' +
       '<div class="sign"><small>MILE</small><b>' + stage + '</b></div>' +
@@ -206,20 +252,18 @@ h1.headline em { font-style: italic; color: var(--accent); }
       '<div class="meta"><span>Last updated: <b>' + updated + '</b></span>' +
       (next ? '<span>Next: <b>' + next + '</b></span>' : '') + '</div>' +
       '<div class="foot"><p>Questions along the way? <a href="mailto:milezerostudio@gmail.com">Just email me</a> — no need to wait for an update.</p></div>';
+
+    document.getElementById('backLink').addEventListener('click', function (e) {
+      e.preventDefault();
+      history.replaceState(null, '', window.location.pathname);
+      renderEntry();
+    });
   }
 
-  if (!slug) { renderNoSlug(); return; }
-
-  fetch('https://docs.google.com/spreadsheets/d/' + SHEET + '/gviz/tq?tqx=out:csv')
-    .then(function (r) { if (!r.ok) throw new Error('sheet'); return r.text(); })
-    .then(function (csv) {
-      var rows = parseCSV(csv);
-      var match = null;
-      for (var i = 0; i < rows.length; i++) {
-        if (rows[i][0].trim().toLowerCase() === slug) { match = rows[i]; break; }
-      }
-      if (match) renderStatus(match); else renderNotFound();
-    })
-    .catch(renderNotFound);
+  if (initialCode) {
+    lookup(initialCode);
+  } else {
+    renderEntry();
+  }
 })();
 </script>
